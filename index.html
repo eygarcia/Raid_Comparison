@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RAID Operations Lab</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --panel: #0d1b2d;
+      --panel-2: #11243a;
+      --line: #28425f;
+      --text: #f4f8ff;
+      --muted: #adc0d5;
+      --cyan: #49d6ff;
+      --blue: #668cff;
+      --green: #50e3a4;
+      --yellow: #ffd166;
+      --red: #ff667d;
+      --purple: #b58cff;
+      --shadow: 0 18px 50px rgba(0, 0, 0, .3);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 0%, rgba(73, 214, 255, .12), transparent 28rem),
+        radial-gradient(circle at 90% 15%, rgba(181, 140, 255, .1), transparent 26rem),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    button, input { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible {
+      outline: 3px solid var(--yellow);
+      outline-offset: 3px;
+    }
+
+    .shell { width: min(1440px, 100%); margin: 0 auto; padding: 20px; }
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: center;
+      padding: 22px 26px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(13, 27, 45, .88);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .eyebrow {
+      margin: 0 0 4px;
+      color: var(--cyan);
+      font-size: .76rem;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.7rem); line-height: 1.08; }
+    .subtitle { margin: 7px 0 0; color: var(--muted); max-width: 72ch; }
+    .scorebox { min-width: 150px; text-align: right; }
+    .scorebox strong { display: block; color: var(--green); font-size: 1.7rem; }
+    .scorebox span { color: var(--muted); font-size: .82rem; }
+    .progress-track {
+      grid-column: 1 / -1;
+      height: 7px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #06101c;
+    }
+    .progress-bar {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--cyan), var(--green));
+      transition: width .4s ease;
+    }
+
+    .lesson-nav {
+      display: flex;
+      gap: 8px;
+      margin: 16px 0;
+      padding: 8px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: rgba(13, 27, 45, .7);
+      scrollbar-width: thin;
+    }
+    .lesson-tab {
+      flex: 0 0 auto;
+      padding: 9px 14px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 750;
+    }
+    .lesson-tab:hover { background: rgba(73, 214, 255, .08); color: var(--text); }
+    .lesson-tab.active { border-color: var(--cyan); background: rgba(73, 214, 255, .14); color: var(--cyan); }
+    .lesson-tab.complete::after { content: " ✓"; color: var(--green); }
+
+    .lesson {
+      display: grid;
+      grid-template-columns: minmax(260px, .8fr) minmax(480px, 1.5fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .lesson > *, .topbar > * { min-width: 0; }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(17, 36, 58, .96), rgba(10, 24, 40, .96));
+      box-shadow: var(--shadow);
+    }
+    .brief { padding: 26px; }
+    .level-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 5px 12px;
+      border: 1px solid rgba(73, 214, 255, .45);
+      border-radius: 999px;
+      color: var(--cyan);
+      background: rgba(73, 214, 255, .09);
+      font-size: .82rem;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .brief h2 { margin: 15px 0 6px; font-size: clamp(1.55rem, 3vw, 2.2rem); line-height: 1.1; }
+    .brief h2, .subtitle, .concept, .question { overflow-wrap: anywhere; }
+    .tagline { margin: 0 0 20px; color: var(--muted); }
+    .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 20px; }
+    .metric { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(4, 14, 25, .4); }
+    .metric span { display: block; color: var(--muted); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 2px; font-size: .95rem; }
+    .metric span, .metric strong { overflow-wrap: anywhere; }
+    .concept { margin: 0; color: #dce9f7; }
+    .pros-cons { display: grid; gap: 11px; margin-top: 20px; }
+    .callout { padding: 13px 15px; border-left: 3px solid; border-radius: 8px; background: rgba(4, 14, 25, .35); }
+    .callout strong { display: block; margin-bottom: 2px; }
+    .callout.good { border-color: var(--green); }
+    .callout.good strong { color: var(--green); }
+    .callout.bad { border-color: var(--red); }
+    .callout.bad strong { color: var(--red); }
+
+    .lab { overflow: hidden; }
+    .lab-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(4, 14, 25, .35);
+    }
+    .lab-head h3 { margin: 0; font-size: 1rem; }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: .75rem; }
+    .legend span::before {
+      content: "";
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      margin-right: 5px;
+      border-radius: 2px;
+      background: var(--cyan);
+    }
+    .legend .parity::before { background: var(--purple); }
+    .legend .failed::before { background: var(--red); }
+
+    .stage {
+      position: relative;
+      min-height: 380px;
+      padding: 35px 22px 28px;
+      overflow: hidden;
+      background:
+        linear-gradient(rgba(73, 214, 255, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(73, 214, 255, .035) 1px, transparent 1px);
+      background-size: 28px 28px;
+      perspective: 1100px;
+    }
+    .stage::after {
+      content: "";
+      position: absolute;
+      inset: auto 8% 14px;
+      height: 55px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, .34);
+      filter: blur(15px);
+      pointer-events: none;
+    }
+    .array {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      gap: clamp(10px, 2vw, 24px);
+      min-height: 280px;
+      transform: rotateX(2deg);
+    }
+    .array-group {
+      display: flex;
+      gap: 10px;
+      padding: 26px 11px 10px;
+      border: 1px dashed rgba(73, 214, 255, .35);
+      border-radius: 15px;
+      position: relative;
+    }
+    .group-label {
+      position: absolute;
+      top: 5px;
+      left: 50%;
+      color: var(--muted);
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      transform: translateX(-50%);
+      white-space: nowrap;
+    }
+    .drive {
+      position: relative;
+      width: clamp(72px, 9vw, 112px);
+      min-height: 252px;
+      padding: 30px 9px 12px;
+      border: 1px solid #46617d;
+      border-radius: 13px;
+      background: linear-gradient(110deg, #203852, #0a1727 45%, #18314b);
+      box-shadow: 8px 13px 22px rgba(0, 0, 0, .3), inset 1px 1px rgba(255, 255, 255, .09);
+      transform: translateZ(8px);
+      transition: transform .25s ease, filter .25s ease, border-color .25s ease;
+      cursor: pointer;
+    }
+    .drive:hover { transform: translateY(-5px) translateZ(10px); border-color: var(--cyan); }
+    .drive::before {
+      content: "";
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 17px 0 0 #2f5272;
+    }
+    .drive-name {
+      position: absolute;
+      inset: auto 0 -25px;
+      color: var(--muted);
+      text-align: center;
+      font-size: .76rem;
+      font-weight: 800;
+    }
+    .blocks { display: grid; gap: 7px; }
+    .block {
+      min-height: 31px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(73, 214, 255, .65);
+      border-radius: 6px;
+      color: #06111d;
+      background: linear-gradient(135deg, #89e8ff, var(--cyan));
+      font-size: .72rem;
+      font-weight: 900;
+      opacity: .36;
+      transform: scale(.93);
+      transition: opacity .25s ease, transform .25s ease, box-shadow .25s ease;
+    }
+    .block.parity { border-color: #c5a8ff; background: linear-gradient(135deg, #d2bdff, var(--purple)); }
+    .block.mirror { background: linear-gradient(135deg, #8ff0c4, var(--green)); border-color: #8ff0c4; }
+    .block.hot { opacity: 1; transform: scale(1); box-shadow: 0 0 20px rgba(73, 214, 255, .55); }
+    .drive.failed {
+      border-color: var(--red);
+      background: linear-gradient(130deg, #3f1b29, #160a10);
+      filter: saturate(.7);
+      transform: translateY(8px) rotateZ(1deg);
+    }
+    .drive.failed::before { background: var(--red); box-shadow: 0 0 13px var(--red); }
+    .drive.failed::after {
+      content: "FAILED";
+      position: absolute;
+      top: 46%;
+      left: 50%;
+      padding: 5px 8px;
+      border: 1px solid var(--red);
+      border-radius: 6px;
+      color: #fff;
+      background: rgba(80, 9, 26, .92);
+      font-size: .72rem;
+      font-weight: 900;
+      letter-spacing: .08em;
+      transform: translate(-50%, -50%) rotate(-8deg);
+    }
+    .drive.failed .block { opacity: .08; }
+
+    .lab-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      align-items: center;
+      padding: 16px 20px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .btn {
+      min-height: 42px;
+      padding: 9px 15px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #142b44;
+      cursor: pointer;
+      font-weight: 800;
+    }
+    .btn:hover { border-color: var(--cyan); background: #193652; }
+    .btn.primary { border-color: transparent; color: #04111b; background: linear-gradient(135deg, #8eeaff, var(--cyan)); }
+    .btn.danger { color: #ffdfe4; border-color: rgba(255, 102, 125, .55); background: rgba(255, 102, 125, .1); }
+    .status {
+      flex: 1 1 220px;
+      margin-left: auto;
+      color: var(--muted);
+      text-align: right;
+      font-size: .85rem;
+    }
+    .status strong { color: var(--green); }
+    .status.down strong { color: var(--red); }
+
+    .narration { padding: 20px; }
+    .step-row { display: flex; align-items: flex-start; gap: 12px; }
+    .step-number {
+      flex: 0 0 35px;
+      display: grid;
+      place-items: center;
+      width: 35px;
+      height: 35px;
+      border-radius: 50%;
+      color: #06111d;
+      background: var(--yellow);
+      font-weight: 900;
+    }
+    .step-copy h3 { margin: 0 0 4px; font-size: 1rem; }
+    .step-copy p { margin: 0; color: var(--muted); }
+    .step-dots { display: flex; gap: 7px; margin-top: 14px; }
+    .step-dot { width: 28px; height: 5px; border: 0; border-radius: 99px; background: #2c435c; cursor: pointer; }
+    .step-dot.active { background: var(--yellow); }
+
+    .quiz {
+      grid-column: 1 / -1;
+      padding: 24px;
+    }
+    .quiz-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .quiz h3 { margin: 0; font-size: 1.08rem; }
+    .question-type { color: var(--yellow); font-size: .72rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .question { margin: 0 0 15px; font-weight: 700; }
+    .answers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .answer {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      color: #dce9f7;
+      background: rgba(4, 14, 25, .38);
+      cursor: pointer;
+    }
+    .answer:hover { border-color: var(--cyan); }
+    .answer:has(input:checked) { border-color: var(--cyan); background: rgba(73, 214, 255, .1); }
+    .quiz-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+    .feedback { min-height: 24px; color: var(--muted); }
+    .feedback.correct { color: var(--green); }
+    .feedback.incorrect { color: #ff9cac; }
+
+    .footer-nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; }
+    .summary {
+      display: none;
+      padding: 34px;
+      text-align: center;
+    }
+    .summary.visible { display: block; }
+    .summary h2 { margin: 0 0 8px; font-size: 2rem; }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 24px 0;
+    }
+    .summary-grid div { padding: 18px; border: 1px solid var(--line); border-radius: 13px; background: rgba(4, 14, 25, .35); }
+    .summary-grid strong { display: block; color: var(--cyan); font-size: 1.45rem; }
+    .source-note { margin: 18px 0 0; color: var(--muted); font-size: .78rem; text-align: center; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+    @media (max-width: 900px) {
+      .lesson { grid-template-columns: 1fr; }
+      .quiz { grid-column: 1; }
+      .stage { min-height: 350px; overflow-x: auto; }
+      .array { justify-content: flex-start; min-width: max-content; padding-inline: 15px; }
+    }
+    @media (max-width: 620px) {
+      .shell { padding: 10px; }
+      .topbar { grid-template-columns: 1fr; padding: 20px; }
+      .scorebox { text-align: left; }
+      .answers, .summary-grid { grid-template-columns: 1fr; }
+      .status { flex-basis: 100%; margin: 2px 0 0; text-align: left; }
+      .legend { display: none; }
+      .drive { width: 76px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Cybersecurity Storage Simulation</p>
+        <h1>RAID Operations Lab</h1>
+        <p class="subtitle">Write data, fail drives, and compare how RAID configurations trade capacity, speed, and resilience.</p>
+      </div>
+      <div class="scorebox" aria-live="polite">
+        <strong id="score">0 / 8</strong>
+        <span>knowledge checks correct</span>
+      </div>
+      <div class="progress-track" aria-label="Lesson progress"><div class="progress-bar" id="progressBar"></div></div>
+    </header>
+
+    <nav class="lesson-nav" id="lessonNav" aria-label="RAID lessons"></nav>
+    <section id="lessonView"></section>
+    <section class="summary card" id="summary" aria-live="polite"></section>
+
+    <div class="footer-nav">
+      <button class="btn" id="previousBtn" type="button">← Previous</button>
+      <button class="btn primary" id="nextBtn" type="button">Next lesson →</button>
+    </div>
+    <p class="source-note">Instructional content adapted from the supplied RAID analysis. RAID improves availability or performance; it is not a substitute for tested backups.</p>
+  </main>
+
+  <script>
+    "use strict";
+
+    const lessons = [
+      {
+        id: "jbod", nav: "Start", badge: "Foundation", title: "From Separate Disks to an Array",
+        tagline: "RAID coordinates multiple drives as one logical storage system.",
+        min: "Varies", capacity: "Sum of drives", fault: "None by design", speed: "No RAID gain",
+        concept: "JBOD means “just a bunch of disks.” It can combine or present disks without striping, mirroring, or parity. RAID adds a deliberate data-placement strategy.",
+        good: "JBOD can use mixed-size drives efficiently and is simple to understand.",
+        bad: "It offers no built-in redundancy. Depending on implementation, a failed disk may lose its files or damage a spanned volume.",
+        groups: [{ label: "Independent disks", drives: [["File A", "File B", "File C"], ["File D", "File E"], ["File F", "File G", "File H", "File I"]] }],
+        steps: [
+          ["Start with physical disks", "Each device can store files independently. Different capacities are common."],
+          ["Add an array strategy", "RAID defines how blocks are distributed, duplicated, or protected with parity."],
+          ["Remember the boundary", "RAID supports uptime and performance. Backups protect against deletion, malware, theft, and disasters."]
+        ],
+        quiz: { type: "True / False", q: "A RAID array eliminates the need for offline or versioned backups.", options: ["True", "False"], answer: 1, why: "RAID can keep services running after some drive failures, but it does not protect against every cause of data loss." }
+      },
+      {
+        id: "raid0", nav: "RAID 0", badge: "RAID 0", title: "Stripe for Speed",
+        tagline: "Blocks are spread across disks with no duplicate or parity copy.",
+        min: "2 drives", capacity: "N × smallest", fault: "0 drives", speed: "Very high",
+        concept: "RAID 0 splits a file into blocks and writes them across two or more drives. Multiple disks can work at once, increasing throughput.",
+        good: "Fast reads and writes, full usable capacity, and minimal overhead.",
+        bad: "One failed drive breaks the stripe and makes the entire array unusable. Use only when data can be recreated or restored.",
+        groups: [{ label: "Striped set", drives: [["A1", "A3", "A5", "A7"], ["A2", "A4", "A6", "A8"]] }],
+        steps: [
+          ["Split the file", "The controller divides data into sequential blocks such as A1, A2, A3, and A4."],
+          ["Write in parallel", "Alternating blocks go to different disks, so both drives can work simultaneously."],
+          ["Test a failure", "Select “Fail next drive.” Any missing block breaks the complete file and the array goes down."]
+        ],
+        quiz: { type: "Multiple Choice", q: "What is the primary advantage of RAID 0?", options: ["Two-drive fault tolerance", "High performance and full capacity", "Distributed parity", "Automatic backup"], answer: 1, why: "RAID 0 is optimized for speed and usable capacity, not redundancy." }
+      },
+      {
+        id: "raid1", nav: "RAID 1", badge: "RAID 1", title: "Mirror Every Write",
+        tagline: "Each data block is duplicated on another drive.",
+        min: "2 drives", capacity: "1 drive", fault: "1 per mirror", speed: "Fast reads",
+        concept: "RAID 1 writes the same information to both drives. If one fails, the surviving mirror still contains a complete copy.",
+        good: "Simple recovery, strong availability, and potentially faster reads.",
+        bad: "Only half of raw capacity is usable in a two-drive mirror; every stored byte consumes two bytes of disk space.",
+        groups: [{ label: "Mirrored pair", drives: [["A1", "A2", "A3", "A4"], ["A1", "A2", "A3", "A4"]] }],
+        mirror: true,
+        steps: [
+          ["Send one write", "The system receives a block such as A1."],
+          ["Create identical copies", "A1 is written to both members of the mirror."],
+          ["Continue after failure", "Fail one drive. The array remains available from the surviving complete copy, but it is now degraded."]
+        ],
+        quiz: { type: "Multiple Choice", q: "Two 2 TB drives in RAID 1 provide approximately how much usable capacity?", options: ["1 TB", "2 TB", "3 TB", "4 TB"], answer: 1, why: "The second 2 TB drive stores the mirror, leaving about 2 TB usable before formatting and filesystem overhead." }
+      },
+      {
+        id: "raid5", nav: "RAID 5", badge: "RAID 5", title: "Stripe with Distributed Parity",
+        tagline: "Parity rotates across the disks so one failed drive can be reconstructed.",
+        min: "3 drives", capacity: "(N − 1) × smallest", fault: "1 drive", speed: "Fast reads",
+        concept: "RAID 5 distributes data and parity among all drives. Parity is calculated information that can recreate one missing block.",
+        good: "Good capacity efficiency, strong read performance, and protection from one drive failure.",
+        bad: "Writes pay a parity penalty. Large-drive rebuilds can be lengthy, and a second failure during rebuild loses the array.",
+        groups: [{ label: "Data + rotating parity", drives: [["A1", "B1", "P-C", "D1"], ["A2", "P-B", "C1", "D2"], ["P-A", "B2", "C2", "P-D"]] }],
+        steps: [
+          ["Stripe the data", "Data blocks are spread across all members for parallel access."],
+          ["Rotate parity", "Parity blocks move between drives instead of occupying one dedicated parity disk."],
+          ["Reconstruct one loss", "If one drive fails, the remaining data plus parity can calculate its missing blocks. Performance is reduced until rebuild completes."]
+        ],
+        quiz: { type: "Multiple Choice", q: "Four equal 2 TB drives in RAID 5 provide approximately how much usable capacity?", options: ["2 TB", "4 TB", "6 TB", "8 TB"], answer: 2, why: "RAID 5 uses one drive’s worth of capacity for distributed parity: (4 − 1) × 2 TB = 6 TB." }
+      },
+      {
+        id: "raid6", nav: "RAID 6", badge: "RAID 6", title: "Add Dual Parity",
+        tagline: "Two independent parity calculations protect against two drive failures.",
+        min: "4 drives", capacity: "(N − 2) × smallest", fault: "2 drives", speed: "Fast reads",
+        concept: "RAID 6 extends distributed-parity RAID with a second parity value. The array can reconstruct data after any two member drives fail.",
+        good: "Safer during long rebuilds and better suited than RAID 5 to larger arrays where a second failure is a serious concern.",
+        bad: "Two drives’ worth of capacity is reserved, and write performance is lower because two parity calculations must be updated.",
+        groups: [{ label: "Data + dual parity", drives: [["A1", "B1", "P-C", "Q-D"], ["A2", "P-B", "Q-C", "D1"], ["P-A", "Q-B", "C1", "D2"], ["Q-A", "B2", "C2", "P-D"]] }],
+        steps: [
+          ["Write data stripes", "Data still spans multiple disks for high read throughput."],
+          ["Calculate P and Q parity", "Two mathematically independent parity blocks protect each stripe."],
+          ["Survive two failures", "Fail two drives and the array stays online in a degraded state. A third failure takes it down."]
+        ],
+        quiz: { type: "True / False", q: "RAID 6 can remain functional after any two member drives fail.", options: ["True", "False"], answer: 0, why: "Dual parity allows the array to reconstruct the contents of two failed drives, assuming no additional failure or corruption." }
+      },
+      {
+        id: "raid10", nav: "RAID 10", badge: "RAID 1+0", title: "Stripe Across Mirrors",
+        tagline: "Mirrored pairs are combined into a fast striped set.",
+        min: "4 drives", capacity: "N ÷ 2 × smallest", fault: "1 per mirror pair", speed: "Very high",
+        concept: "RAID 10 first creates mirrored pairs, then stripes data across those pairs. It combines RAID 1 resilience with RAID 0 performance.",
+        good: "Excellent read/write performance, fast rebuilds, and possible survival of multiple failures when they occur in different mirror pairs.",
+        bad: "Half of raw capacity is used for mirrors, and losing both drives in one mirror pair loses the array.",
+        groups: [
+          { label: "Mirror pair A", drives: [["A1", "A2", "A3"], ["A1", "A2", "A3"]] },
+          { label: "Mirror pair B", drives: [["B1", "B2", "B3"], ["B1", "B2", "B3"]] }
+        ],
+        mirror: true,
+        steps: [
+          ["Build mirrors", "Drives 1–2 form one RAID 1 pair; drives 3–4 form another."],
+          ["Stripe across pairs", "Work is divided between the two mirrored units for speed."],
+          ["Observe the failure domain", "One drive may fail in each pair and the array can still run. Two failures in the same pair are fatal."]
+        ],
+        quiz: { type: "Multiple Choice", q: "Which two-drive failure can RAID 10 survive in this four-drive layout?", options: ["Both drives in mirror pair A", "One drive from each mirror pair", "Any two drives", "No two-drive failure"], answer: 1, why: "Each mirror pair must retain one working copy. RAID 10 can survive one failure in each pair, but not both failures in the same pair." }
+      },
+      {
+        id: "raid01", nav: "RAID 0+1", badge: "RAID 0+1", title: "Mirror Two Striped Sets",
+        tagline: "Two RAID 0 sets are built first, then mirrored to each other.",
+        min: "4 drives", capacity: "N ÷ 2 × smallest", fault: "Depends on set", speed: "Very high",
+        concept: "RAID 0+1 reverses RAID 10’s nesting order. A single drive failure disables its entire striped half, leaving the other stripe set as the only complete copy.",
+        good: "High throughput with 50% usable capacity and continued operation after a member failure.",
+        bad: "After one drive fails, the surviving striped set has no redundancy. A failure in that other set loses the array.",
+        groups: [
+          { label: "Stripe set A", drives: [["A1", "A3", "A5"], ["A2", "A4", "A6"]] },
+          { label: "Stripe set B (mirror)", drives: [["A1", "A3", "A5"], ["A2", "A4", "A6"]] }
+        ],
+        mirror: true,
+        steps: [
+          ["Build two stripes", "Each half is a RAID 0 set. Every member is required for that set to function."],
+          ["Mirror the sets", "Stripe set B stores the same logical content as stripe set A."],
+          ["Compare with RAID 10", "Fail one drive in each set: RAID 0+1 goes down. RAID 10 may survive two failures if they are in different mirror pairs."]
+        ],
+        quiz: { type: "Multiple Choice", q: "Why is RAID 10 generally more fault-flexible than RAID 0+1?", options: ["RAID 10 uses parity", "RAID 10 has no mirrors", "RAID 10 can keep separate mirror pairs alive", "RAID 10 always uses fewer disks"], answer: 2, why: "RAID 10’s independent mirror pairs can each lose one member. In RAID 0+1, one failure disables a whole striped half." }
+      },
+      {
+        id: "implementation", nav: "Deploy", badge: "Implementation", title: "Choose the Right RAID",
+        tagline: "Workload, recovery time, capacity, budget, and backup strategy drive the decision.",
+        min: "Workload-specific", capacity: "Trade-off", fault: "Plan + monitor", speed: "Measure it",
+        concept: "Software RAID uses the operating system and standard controllers. Hardware RAID uses a dedicated controller. Modern implementations vary, so validate controller behavior, monitoring, spare strategy, and recovery procedures.",
+        good: "A suitable RAID level can improve service availability and throughput while planned monitoring catches degraded arrays early.",
+        bad: "No level is universally best. Controller failure, silent corruption, ransomware, deletion, and site loss still require separate protections.",
+        groups: [{ label: "Defense in depth", drives: [["RAID", "Alerts", "Scrub"], ["Backup", "Offline", "Test"], ["UPS", "Spare", "Plan"]] }],
+        steps: [
+          ["Define the workload", "Identify read/write pattern, uptime target, usable capacity, and acceptable recovery time."],
+          ["Select and monitor", "Choose hardware or software RAID, configure alerts, and replace failed members promptly."],
+          ["Prove recovery", "Maintain independent backups and regularly test restoration. An untested recovery plan is only a theory."]
+        ],
+        quiz: { type: "Multiple Choice", q: "Which plan best protects a college server against both drive failure and ransomware?", options: ["RAID 0 only", "RAID 6 only", "RAID plus monitored, tested, versioned backups", "One very large disk"], answer: 2, why: "RAID addresses disk availability; tested, isolated or versioned backups address destructive changes and broader disasters." }
+      }
+    ];
+
+    const state = {
+      current: 0,
+      answered: Array(lessons.length).fill(false),
+      correct: Array(lessons.length).fill(false),
+      step: 0,
+      failed: new Set(),
+      timers: [],
+      showingSummary: false
+    };
+
+    const view = document.getElementById("lessonView");
+    const nav = document.getElementById("lessonNav");
+    const scoreEl = document.getElementById("score");
+    const progressBar = document.getElementById("progressBar");
+    const summary = document.getElementById("summary");
+    const previousBtn = document.getElementById("previousBtn");
+    const nextBtn = document.getElementById("nextBtn");
+
+    function init() {
+      lessons.forEach((lesson, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "lesson-tab";
+        button.textContent = lesson.nav;
+        button.addEventListener("click", () => showLesson(index));
+        nav.appendChild(button);
+      });
+      previousBtn.addEventListener("click", () => showLesson(Math.max(0, state.current - 1)));
+      nextBtn.addEventListener("click", () => {
+        if (state.showingSummary) {
+          showLesson(0);
+          return;
+        }
+        if (state.current < lessons.length - 1) showLesson(state.current + 1);
+        else showSummary();
+      });
+      showLesson(0);
+    }
+
+    function showLesson(index) {
+      clearTimers();
+      state.current = index;
+      state.step = 0;
+      state.failed = new Set();
+      state.showingSummary = false;
+      summary.classList.remove("visible");
+      view.style.display = "";
+      const lesson = lessons[index];
+      const disks = lesson.groups.flatMap(group => group.drives);
+      let diskIndex = 0;
+      const groupsHtml = lesson.groups.map(group => {
+        const drivesHtml = group.drives.map(blocks => {
+          const currentDisk = diskIndex++;
+          return `<button class="drive" type="button" data-disk="${currentDisk}" aria-label="Drive ${currentDisk + 1}. Select to toggle failure.">
+            <span class="blocks">${blocks.map((block, i) => blockHtml(block, i, lesson)).join("")}</span>
+            <span class="drive-name">DRIVE ${currentDisk + 1}</span>
+          </button>`;
+        }).join("");
+        return `<div class="array-group"><span class="group-label">${group.label}</span>${drivesHtml}</div>`;
+      }).join("");
+
+      const quizOptions = lesson.quiz.options.map((option, optionIndex) =>
+        `<label class="answer"><input type="radio" name="answer" value="${optionIndex}"><span>${option}</span></label>`
+      ).join("");
+
+      view.innerHTML = `
+        <div class="lesson">
+          <article class="brief card">
+            <span class="level-badge">${lesson.badge}</span>
+            <h2>${lesson.title}</h2>
+            <p class="tagline">${lesson.tagline}</p>
+            <div class="metrics">
+              <div class="metric"><span>Minimum</span><strong>${lesson.min}</strong></div>
+              <div class="metric"><span>Usable capacity</span><strong>${lesson.capacity}</strong></div>
+              <div class="metric"><span>Fault tolerance</span><strong>${lesson.fault}</strong></div>
+              <div class="metric"><span>Performance</span><strong>${lesson.speed}</strong></div>
+            </div>
+            <p class="concept">${lesson.concept}</p>
+            <div class="pros-cons">
+              <div class="callout good"><strong>Advantage</strong>${lesson.good}</div>
+              <div class="callout bad"><strong>Trade-off</strong>${lesson.bad}</div>
+            </div>
+          </article>
+
+          <section class="lab card" aria-label="${lesson.badge} interactive disk simulation">
+            <div class="lab-head">
+              <h3>Interactive array</h3>
+              <div class="legend"><span>Data</span><span class="parity">Parity</span><span class="failed">Failed drive</span></div>
+            </div>
+            <div class="stage"><div class="array">${groupsHtml}</div></div>
+            <div class="lab-controls">
+              <button class="btn primary" id="animateBtn" type="button">▶ Animate write</button>
+              <button class="btn danger" id="failBtn" type="button">⚠ Fail next drive</button>
+              <button class="btn" id="resetBtn" type="button">Reset array</button>
+              <div class="status" id="arrayStatus" aria-live="polite"><strong>HEALTHY</strong> · All drives online</div>
+            </div>
+            <div class="narration">
+              <div class="step-row">
+                <span class="step-number" id="stepNumber">1</span>
+                <div class="step-copy"><h3 id="stepTitle"></h3><p id="stepText"></p></div>
+              </div>
+              <div class="step-dots" id="stepDots" aria-label="Explanation steps"></div>
+            </div>
+          </section>
+
+          <section class="quiz card" aria-labelledby="quizTitle">
+            <div class="quiz-header"><h3 id="quizTitle">Check your understanding</h3><span class="question-type">${lesson.quiz.type}</span></div>
+            <p class="question">${lesson.quiz.q}</p>
+            <div class="answers">${quizOptions}</div>
+            <div class="quiz-actions">
+              <button class="btn primary" id="checkBtn" type="button">Check answer</button>
+              <div class="feedback" id="feedback" role="status"></div>
+            </div>
+          </section>
+        </div>`;
+
+      document.querySelectorAll(".drive").forEach(drive => {
+        drive.addEventListener("click", () => toggleFailure(Number(drive.dataset.disk)));
+      });
+      document.getElementById("animateBtn").addEventListener("click", animateWrite);
+      document.getElementById("failBtn").addEventListener("click", failNext);
+      document.getElementById("resetBtn").addEventListener("click", resetArray);
+      document.getElementById("checkBtn").addEventListener("click", checkAnswer);
+      renderSteps();
+      updateChrome();
+      restoreAnswerState();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function blockHtml(block, index, lesson) {
+      const parity = /^[PQ]-/.test(block);
+      const mirror = lesson.mirror && !parity;
+      const css = parity ? "parity" : mirror ? "mirror" : "";
+      return `<span class="block ${css}" data-order="${index}">${block}</span>`;
+    }
+
+    function renderSteps() {
+      const lesson = lessons[state.current];
+      document.getElementById("stepNumber").textContent = state.step + 1;
+      document.getElementById("stepTitle").textContent = lesson.steps[state.step][0];
+      document.getElementById("stepText").textContent = lesson.steps[state.step][1];
+      const dots = document.getElementById("stepDots");
+      dots.innerHTML = lesson.steps.map((_, index) =>
+        `<button type="button" class="step-dot ${index === state.step ? "active" : ""}" data-step="${index}" aria-label="Show explanation step ${index + 1}"></button>`
+      ).join("");
+      dots.querySelectorAll("button").forEach(button => {
+        button.addEventListener("click", () => {
+          state.step = Number(button.dataset.step);
+          renderSteps();
+        });
+      });
+    }
+
+    function animateWrite() {
+      clearTimers();
+      resetBlockHighlights();
+      const blocks = [...document.querySelectorAll(".block")];
+      const maxOrder = Math.max(...blocks.map(block => Number(block.dataset.order)));
+      for (let order = 0; order <= maxOrder; order++) {
+        state.timers.push(setTimeout(() => {
+          blocks.filter(block => Number(block.dataset.order) === order && !block.closest(".drive").classList.contains("failed"))
+            .forEach(block => block.classList.add("hot"));
+          state.step = Math.min(order, lessons[state.current].steps.length - 1);
+          renderSteps();
+        }, order * 520));
+      }
+    }
+
+    function resetBlockHighlights() {
+      document.querySelectorAll(".block").forEach(block => block.classList.remove("hot"));
+    }
+
+    function failNext() {
+      const drives = [...document.querySelectorAll(".drive")];
+      const next = drives.findIndex((_, index) => !state.failed.has(index));
+      if (next >= 0) toggleFailure(next);
+    }
+
+    function toggleFailure(index) {
+      const drive = document.querySelector(`[data-disk="${index}"]`);
+      if (!drive) return;
+      if (state.failed.has(index)) state.failed.delete(index);
+      else state.failed.add(index);
+      drive.classList.toggle("failed", state.failed.has(index));
+      drive.setAttribute("aria-pressed", String(state.failed.has(index)));
+      state.step = 2;
+      renderSteps();
+      updateArrayStatus();
+    }
+
+    function evaluateArray() {
+      const id = lessons[state.current].id;
+      const failures = state.failed.size;
+      if (!failures) return { mode: "healthy", text: "All drives online" };
+      if (id === "raid10") {
+        const pairA = state.failed.has(0) && state.failed.has(1);
+        const pairB = state.failed.has(2) && state.failed.has(3);
+        return pairA || pairB ? { mode: "down", text: "Both members of one mirror pair failed" } : { mode: "degraded", text: "Each mirror pair still has a working copy" };
+      }
+      if (id === "raid01") {
+        const setA = state.failed.has(0) || state.failed.has(1);
+        const setB = state.failed.has(2) || state.failed.has(3);
+        return setA && setB ? { mode: "down", text: "Both striped halves contain a failed member" } : { mode: "degraded", text: "One striped half is unavailable; the other is now unprotected" };
+      }
+      const tolerance = { raid0: 0, raid1: 1, raid5: 1, raid6: 2, jbod: 0, implementation: 1 }[id] ?? 0;
+      if (id === "jbod") return { mode: "down", text: "No RAID reconstruction; data on the failed disk is unavailable" };
+      return failures <= tolerance
+        ? { mode: "degraded", text: `${failures} failed drive${failures > 1 ? "s" : ""}; array remains available` }
+        : { mode: "down", text: `Fault tolerance exceeded with ${failures} failed drives` };
+    }
+
+    function updateArrayStatus() {
+      const result = evaluateArray();
+      const status = document.getElementById("arrayStatus");
+      status.className = `status ${result.mode === "down" ? "down" : ""}`;
+      const label = result.mode === "healthy" ? "HEALTHY" : result.mode === "degraded" ? "DEGRADED" : "ARRAY DOWN";
+      status.innerHTML = `<strong>${label}</strong> · ${result.text}`;
+    }
+
+    function resetArray() {
+      clearTimers();
+      state.failed.clear();
+      state.step = 0;
+      document.querySelectorAll(".drive").forEach(drive => {
+        drive.classList.remove("failed");
+        drive.setAttribute("aria-pressed", "false");
+      });
+      resetBlockHighlights();
+      renderSteps();
+      updateArrayStatus();
+    }
+
+    function checkAnswer() {
+      const selected = document.querySelector('input[name="answer"]:checked');
+      const feedback = document.getElementById("feedback");
+      if (!selected) {
+        feedback.className = "feedback incorrect";
+        feedback.textContent = "Choose an answer first.";
+        return;
+      }
+      const lesson = lessons[state.current];
+      const isCorrect = Number(selected.value) === lesson.quiz.answer;
+      state.answered[state.current] = true;
+      state.correct[state.current] = isCorrect;
+      feedback.className = `feedback ${isCorrect ? "correct" : "incorrect"}`;
+      feedback.textContent = `${isCorrect ? "Correct." : "Not quite."} ${lesson.quiz.why}`;
+      updateChrome();
+    }
+
+    function restoreAnswerState() {
+      if (!state.answered[state.current]) return;
+      const lesson = lessons[state.current];
+      const feedback = document.getElementById("feedback");
+      const correctInput = document.querySelector(`input[name="answer"][value="${lesson.quiz.answer}"]`);
+      if (correctInput && state.correct[state.current]) correctInput.checked = true;
+      feedback.className = `feedback ${state.correct[state.current] ? "correct" : "incorrect"}`;
+      feedback.textContent = state.correct[state.current] ? `Correct. ${lesson.quiz.why}` : "Previously attempted. Try again.";
+    }
+
+    function updateChrome() {
+      const correctCount = state.correct.filter(Boolean).length;
+      const completed = state.answered.filter(Boolean).length;
+      scoreEl.textContent = `${correctCount} / ${lessons.length}`;
+      progressBar.style.width = `${(completed / lessons.length) * 100}%`;
+      [...nav.children].forEach((button, index) => {
+        button.classList.toggle("active", index === state.current);
+        button.classList.toggle("complete", state.answered[index]);
+        button.setAttribute("aria-current", index === state.current ? "page" : "false");
+      });
+      previousBtn.disabled = state.current === 0;
+      nextBtn.textContent = state.current === lessons.length - 1 ? "View results →" : "Next lesson →";
+    }
+
+    function showSummary() {
+      clearTimers();
+      state.showingSummary = true;
+      view.style.display = "none";
+      const correct = state.correct.filter(Boolean).length;
+      const attempted = state.answered.filter(Boolean).length;
+      const percent = Math.round((correct / lessons.length) * 100);
+      let message = "Revisit the lesson tabs and experiment with more failures.";
+      if (percent >= 88) message = "Excellent work. You can distinguish data placement, parity, and nested RAID failure domains.";
+      else if (percent >= 63) message = "Solid foundation. Review the missed checks, especially capacity and failure patterns.";
+      summary.innerHTML = `
+        <span class="level-badge">Lab complete</span>
+        <h2>Your RAID readiness: ${percent}%</h2>
+        <p>${message}</p>
+        <div class="summary-grid">
+          <div><strong>${correct}</strong>correct</div>
+          <div><strong>${attempted}</strong>attempted</div>
+          <div><strong>${lessons.length}</strong>lessons</div>
+        </div>
+        <button class="btn primary" type="button" id="reviewBtn">Review lessons</button>`;
+      summary.classList.add("visible");
+      document.getElementById("reviewBtn").addEventListener("click", () => showLesson(0));
+      nextBtn.textContent = "Review from start →";
+      previousBtn.disabled = false;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function clearTimers() {
+      state.timers.forEach(timer => clearTimeout(timer));
+      state.timers = [];
+    }
+
+    init();
+  </script>
+</body>
+</html>
